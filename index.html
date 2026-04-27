@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>仓库库位管理系统</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#f0ede6;--bg2:#e8e4dc;--card:#faf9f6;--border:#ccc8be;--border2:#e0dcd4;
+  --text:#1c1b18;--text2:#5a5750;--text3:#9a9690;
+  --green:#2d6a2d;--green-bg:#e6f0e6;
+  --amber:#7a4a00;--amber-bg:#fdf0d8;
+  --red:#7a1f1f;--red-bg:#fdeaea;
+  --blue:#1a4a7a;--blue-bg:#e4edf8;
+  --purple:#3c2d7a;--purple-bg:#eeeafc;
+  --accent:#c8501a;
+  --mono:'IBM Plex Mono',monospace;--sans:'Noto Sans SC',sans-serif;
+  --radius:6px;--radius-lg:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;}
+
+/* LOGIN */
+#login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--text);}
+.login-box{background:var(--card);border-radius:14px;padding:40px 36px;width:340px;text-align:center;border:1px solid var(--border2);}
+.login-logo{font-family:var(--mono);font-size:12px;letter-spacing:2px;color:var(--text3);margin-bottom:6px;}
+.login-title{font-size:22px;font-weight:700;margin-bottom:4px;}
+.login-sub{font-size:12px;color:var(--text3);margin-bottom:28px;font-family:var(--mono);}
+.login-box input[type=password]{width:100%;font-size:15px;font-family:var(--mono);padding:12px 14px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);text-align:center;letter-spacing:4px;margin-bottom:12px;transition:border-color .15s;}
+.login-box input[type=password]:focus{outline:none;border-color:var(--accent);}
+.login-btn{width:100%;font-size:14px;font-family:var(--mono);font-weight:500;padding:12px;border-radius:var(--radius);cursor:pointer;background:var(--text);color:var(--bg);border:none;letter-spacing:.5px;transition:background .15s;}
+.login-btn:hover{background:var(--accent);}
+.login-err{font-size:12px;color:var(--red);margin-top:10px;font-family:var(--mono);min-height:18px;}
+.login-hint{font-size:11px;color:var(--text3);margin-top:20px;font-family:var(--mono);line-height:1.6;}
+
+/* LOADING OVERLAY */
+#loading-overlay{display:none;position:fixed;inset:0;background:var(--text);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:16px;}
+#loading-overlay.show{display:flex;}
+.loading-logo{font-family:var(--mono);font-size:13px;letter-spacing:2px;color:#888;}
+.loading-bar{width:200px;height:2px;background:#333;border-radius:2px;overflow:hidden;}
+.loading-fill{height:100%;background:var(--accent);border-radius:2px;animation:loadfill 1.5s ease-in-out infinite;}
+@keyframes loadfill{0%{width:0%}60%{width:80%}100%{width:100%}}
+.loading-txt{font-family:var(--mono);font-size:11px;color:#666;}
+
+/* APP */
+#app-screen{display:none;}
+.topbar{background:var(--text);color:var(--bg);padding:0 20px;height:48px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;}
+.topbar-logo{font-family:var(--mono);font-size:13px;font-weight:500;letter-spacing:.5px;}
+.topbar-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);}
+.topbar-sub{font-size:11px;color:#888;margin-left:auto;font-family:var(--mono);}
+.sync-status{display:flex;align-items:center;gap:6px;font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:99px;cursor:pointer;border:1px solid transparent;transition:.15s;}
+.sync-status.ok{color:#6aaa6a;border-color:#3a6a3a;}
+.sync-status.err{color:#e07070;border-color:#903030;}
+.sync-status.busy{color:#e0b050;border-color:#8a6020;}
+.sync-status.local{color:#888;border-color:#555;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:currentColor;}
+.sync-dot.pulse{animation:pulse 1.2s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.logout-btn{font-size:11px;font-family:var(--mono);padding:4px 10px;border-radius:99px;cursor:pointer;border:1px solid #444;color:#888;background:none;transition:.15s;}
+.logout-btn:hover{border-color:#888;color:#ccc;}
+
+.layout{display:flex;height:calc(100vh - 48px);}
+.sidebar{width:52px;background:var(--text);display:flex;flex-direction:column;align-items:center;padding:12px 0;gap:4px;}
+.nav-btn{width:38px;height:38px;border-radius:var(--radius);border:none;background:none;color:#888;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:17px;transition:.15s;}
+.nav-btn:hover{background:#2a2a28;color:#ccc;}
+.nav-btn.active{background:var(--accent);color:#fff;}
+.nav-lbl{font-size:8px;font-family:var(--mono);color:inherit;line-height:1;}
+.content{flex:1;overflow-y:auto;padding:20px;}
+
+.stats{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+.stat{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:12px 16px;flex:1;min-width:90px;}
+.stat-v{font-size:24px;font-weight:700;font-family:var(--mono);}
+.stat-l{font-size:11px;color:var(--text3);margin-top:2px;}
+
+.panel{display:none;}.panel.active{display:block;}
+.panel-title{font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.panel-title span{font-family:var(--mono);font-size:11px;color:var(--text3);font-weight:400;}
+
+.search-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;}
+.search-row input,.search-row select{font-size:13px;font-family:var(--sans);padding:7px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--card);color:var(--text);}
+.search-row input{flex:1;min-width:160px;}
+.search-row input:focus,.search-row select:focus{outline:none;border-color:var(--accent);}
+
+.tbl-wrap{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius-lg);overflow:hidden;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{font-weight:500;font-size:11px;color:var(--text3);padding:8px 10px;text-align:left;background:var(--bg2);border-bottom:1px solid var(--border2);font-family:var(--mono);letter-spacing:.3px;}
+td{padding:8px 10px;border-bottom:1px solid var(--border2);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:var(--bg);}
+.ovf{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:500;font-family:var(--mono);white-space:nowrap;}
+.bb{background:var(--blue-bg);color:var(--blue);}
+.bg{background:var(--green-bg);color:var(--green);}
+.ba{background:var(--amber-bg);color:var(--amber);}
+.br{background:#f0ede6;color:var(--text3);}
+.bp{background:var(--purple-bg);color:var(--purple);}
+
+.map-sec{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius-lg);margin-bottom:12px;overflow:hidden;}
+.map-sec-hd{padding:9px 14px;background:var(--bg2);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:10px;font-size:12px;font-family:var(--mono);}
+.map-body{padding:12px 14px;overflow-x:auto;}
+.zone-unit{display:inline-flex;flex-direction:column;align-items:center;gap:3px;margin-right:8px;margin-bottom:8px;vertical-align:top;}
+.zlbl{font-size:9px;font-weight:500;color:var(--text3);font-family:var(--mono);}
+.pcol{display:flex;flex-direction:column;gap:3px;}
+.pt{width:54px;height:38px;border:1px solid var(--border);border-radius:5px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:2px;background:var(--card);transition:border-color .12s;}
+.pt:hover{border-color:var(--accent);}
+.pt.occ{background:var(--green-bg);border-color:#8aba8a;}
+.pt.part{background:var(--amber-bg);border-color:#e0aa50;}
+.pt.done{background:var(--bg2);border-color:var(--border);}
+.pt.hit{background:#fff3e0;border-color:var(--accent);box-shadow:0 0 0 1.5px var(--accent);}
+.pt.empty{background:var(--bg);border-style:dashed;cursor:default;}
+.pt-id{font-size:8px;color:var(--text3);font-family:var(--mono);line-height:1;}
+.pt-nm{font-size:9px;font-weight:500;color:var(--text);text-align:center;line-height:1.2;max-width:50px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pt.empty .pt-nm{color:var(--text3);}
+.legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px;}
+.leg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text3);font-family:var(--mono);}
+.ld{width:12px;height:12px;border-radius:3px;border:1px solid;}
+
+.form-card{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:18px;}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;}
+.fgrid.f1{grid-template-columns:1fr;}
+label{font-size:11px;color:var(--text3);display:block;margin-bottom:3px;font-family:var(--mono);letter-spacing:.3px;}
+input[type=text],input[type=number],input[type=password],select,textarea{width:100%;font-size:13px;font-family:var(--sans);padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text);transition:border-color .12s;}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent);background:var(--card);}
+textarea{resize:vertical;min-height:60px;}
+.btn-row{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.btn-p{font-size:13px;padding:8px 20px;border-radius:var(--radius);cursor:pointer;background:var(--text);color:var(--bg);border:none;font-weight:700;font-family:var(--mono);letter-spacing:.3px;transition:.12s;}
+.btn-p:hover{background:var(--accent);}
+.btn-s{font-size:13px;padding:8px 14px;border-radius:var(--radius);cursor:pointer;background:none;border:1px solid var(--border);color:var(--text2);font-family:var(--mono);transition:.12s;}
+.btn-s:hover{border-color:var(--text);color:var(--text);}
+.btn-d{font-size:12px;padding:4px 8px;border-radius:var(--radius);cursor:pointer;background:none;border:1px solid #e0a0a0;color:var(--red);font-family:var(--mono);}
+.btn-d:hover{background:var(--red-bg);}
+.msg{font-size:13px;padding:9px 12px;border-radius:var(--radius);margin-bottom:10px;font-family:var(--mono);}
+.ms{background:var(--green-bg);color:var(--green);}
+.me{background:var(--red-bg);color:var(--red);}
+
+.setup-card{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius-lg);padding:20px;max-width:500px;margin-bottom:14px;}
+.setup-card h2{font-size:15px;font-weight:700;margin-bottom:12px;}
+.step{display:flex;gap:10px;margin-bottom:10px;align-items:flex-start;}
+.step-num{width:22px;height:22px;background:var(--accent);color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:1px;font-family:var(--mono);}
+.step-txt{font-size:13px;color:var(--text2);line-height:1.5;}
+.step-txt a{color:var(--accent);}
+.divider{border:none;border-top:1px solid var(--border2);margin:16px 0;}
+
+.ov{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center;}
+.ov.show{display:flex;}
+.mdl{background:var(--card);border-radius:var(--radius-lg);border:1px solid var(--border2);padding:20px;width:360px;max-height:85vh;overflow-y:auto;}
+.mdl h3{font-size:15px;font-weight:700;margin-bottom:14px;font-family:var(--mono);}
+.mc{float:right;cursor:pointer;font-size:18px;color:var(--text3);background:none;border:none;}
+.dt-row{display:flex;border-bottom:1px solid var(--border2);}
+.dt-row:last-child{border-bottom:none;}
+.dt-k{font-size:11px;color:var(--text3);padding:8px 0;width:72px;font-family:var(--mono);flex-shrink:0;}
+.dt-v{font-size:13px;color:var(--text);padding:8px 0;}
+.empty-st{text-align:center;padding:3rem 0;color:var(--text3);font-size:13px;font-family:var(--mono);}
+.act{display:flex;gap:5px;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">WMS // 海外仓</div>
+    <div class="login-title">库位管理系统</div>
+    <div class="login-sub">WAREHOUSE MANAGEMENT</div>
+    <input type="password" id="pwd-input" placeholder="请输入访问密码" onkeydown="if(event.key==='Enter')doLogin()" autofocus />
+    <button class="login-btn" onclick="doLogin()">进入系统</button>
+    <div class="login-err" id="login-err"></div>
+    <div class="login-hint">忘记密码请联系仓库管理员</div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="loading-overlay">
+  <div class="loading-logo">WMS // 正在加载数据...</div>
+  <div class="loading-bar"><div class="loading-fill"></div></div>
+  <div class="loading-txt" id="loading-txt">正在连接云端...</div>
+</div>
+
+<!-- APP -->
+<div id="app-screen">
+  <div class="topbar">
+    <div class="topbar-logo">WMS // 海外仓</div>
+    <div class="topbar-dot"></div>
+    <div id="sync-btn" class="sync-status local" onclick="manualSync()" title="点击立即同步">
+      <div class="sync-dot"></div>
+      <span id="sync-txt">本地模式</span>
+    </div>
+    <div class="topbar-sub" id="last-sync-lbl"></div>
+    <button class="logout-btn" onclick="doLogout()">退出登录</button>
+  </div>
+  <div class="layout">
+    <div class="sidebar">
+      <button class="nav-btn active" onclick="sw('search')">🔍<span class="nav-lbl">查询</span></button>
+      <button class="nav-btn" onclick="sw('map')">🗺<span class="nav-lbl">地图</span></button>
+      <button class="nav-btn" onclick="sw('entry')">📥<span class="nav-lbl">入库</span></button>
+      <button class="nav-btn" onclick="sw('export')">💾<span class="nav-lbl">导出</span></button>
+      <button class="nav-btn" onclick="sw('setup')">⚙️<span class="nav-lbl">设置</span></button>
+    </div>
+    <div class="content">
+      <div class="stats" id="stats"></div>
+
+      <!-- SEARCH -->
+      <div id="panel-search" class="panel active">
+        <div class="panel-title">搜索查询 <span>SEARCH</span></div>
+        <div class="search-row">
+          <input type="text" id="q" placeholder="搜索入库单号 / 货品名称 / 区域..." oninput="doSearch()" />
+          <select id="fz" onchange="doSearch()" style="width:110px">
+            <option value="">全部区域</option>
+            <option value="A">A区</option><option value="B">B区</option>
+            <option value="C">C区</option><option value="办公室">办公室区</option>
+          </select>
+          <select id="fs" onchange="doSearch()" style="width:108px">
+            <option value="">全部状态</option>
+            <option>在库</option><option>部分出库</option><option>已出库</option>
+          </select>
+        </div>
+        <div class="tbl-wrap">
+          <table style="table-layout:fixed">
+            <colgroup><col style="width:90px"><col style="width:20%"><col style="width:28%"><col style="width:82px"><col style="width:82px"><col style="width:98px"></colgroup>
+            <thead><tr><th>库位</th><th>货品名称</th><th>入库单号</th><th>数量</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody id="sb"></tbody>
+          </table>
+          <div id="se" class="empty-st" style="display:none">暂无记录</div>
+        </div>
+      </div>
+
+      <!-- MAP -->
+      <div id="panel-map" class="panel">
+        <div class="panel-title">仓库地图 <span>WAREHOUSE MAP</span></div>
+        <div class="search-row">
+          <input type="text" id="mq" placeholder="高亮搜索货品..." oninput="renderMap()" style="max-width:220px"/>
+        </div>
+        <div class="legend">
+          <div class="leg"><div class="ld" style="background:var(--green-bg);border-color:#8aba8a"></div>在库</div>
+          <div class="leg"><div class="ld" style="background:var(--amber-bg);border-color:#e0aa50"></div>部分出库</div>
+          <div class="leg"><div class="ld" style="background:var(--bg2);border-color:var(--border)"></div>已出库</div>
+          <div class="leg"><div class="ld" style="background:#fff3e0;border-color:var(--accent)"></div>搜索命中</div>
+          <div class="leg"><div class="ld" style="background:var(--bg);border-color:var(--border);border-style:dashed"></div>空托位</div>
+        </div>
+        <div id="mg"></div>
+      </div>
+
+      <!-- ENTRY -->
+      <div id="panel-entry" class="panel">
+        <div class="panel-title">入库登记 <span>INBOUND</span></div>
+        <div id="em"></div>
+        <div class="form-card">
+          <div class="fgrid">
+            <div><label>区域大类</label>
+              <select id="eg" onchange="updNums()">
+                <option value="A">A区（A1–A44）</option>
+                <option value="B">B区（B1–B26）</option>
+                <option value="C">C区（C1–C5）</option>
+                <option value="办公室">办公室区（1–11）</option>
+              </select>
+            </div>
+            <div><label>区号</label><select id="en"></select></div>
+            <div><label>托盘号</label><select id="ep"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></div>
+            <div><label>货品名称</label><input type="text" id="ename" placeholder="如：充气泵" /></div>
+            <div><label>入库单号</label><input type="text" id="eib" placeholder="如：IB002250101RS-C1" /></div>
+            <div><label>数量</label><input type="number" id="eqty" placeholder="如：40" /></div>
+            <div><label>单位</label><select id="eunit"><option>箱</option><option>个</option><option>件</option><option>托</option><option>套</option></select></div>
+            <div><label>状态</label><select id="estat"><option>在库</option><option>部分出库</option><option>已出库</option></select></div>
+          </div>
+          <div class="fgrid f1"><div><label>备注</label><textarea id="enote" placeholder="客户名称、特殊说明..."></textarea></div></div>
+          <div class="btn-row">
+            <button class="btn-p" onclick="saveEntry()">保存入库</button>
+            <button class="btn-s" onclick="clearEntry()">清空</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- EXPORT -->
+      <div id="panel-export" class="panel">
+        <div class="panel-title">导出 / 备份 <span>EXPORT</span></div>
+        <div class="form-card">
+          <p style="font-size:13px;color:var(--text2);margin-bottom:14px">CSV 可直接用 Excel 打开。JSON 可用于备份还原。</p>
+          <div class="btn-row">
+            <button class="btn-p" onclick="exportCSV()">导出 CSV</button>
+            <button class="btn-s" onclick="exportJSON()">备份 JSON</button>
+          </div>
+          <hr class="divider">
+          <p style="font-size:13px;font-weight:700;margin-bottom:8px">从 JSON 还原</p>
+          <textarea id="ij" style="width:100%;height:80px;font-size:12px;font-family:var(--mono)" placeholder="粘贴 JSON 备份数据..."></textarea>
+          <div class="btn-row"><button class="btn-s" onclick="importJSON()">导入 JSON</button></div>
+          <div id="xm" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <!-- SETUP -->
+      <div id="panel-setup" class="panel">
+        <div class="panel-title">系统设置 <span>SETTINGS</span></div>
+        <div class="setup-card">
+          <h2>🔒 修改访问密码</h2>
+          <div style="max-width:320px">
+            <div style="margin-bottom:8px"><label>当前密码</label><input type="password" id="pwd-old" /></div>
+            <div style="margin-bottom:8px"><label>新密码（至少6位）</label><input type="password" id="pwd-new" /></div>
+            <div style="margin-bottom:8px"><label>确认新密码</label><input type="password" id="pwd-new2" /></div>
+          </div>
+          <div class="btn-row"><button class="btn-p" onclick="changePwd()">更新密码</button></div>
+          <div id="pwd-msg" style="margin-top:10px"></div>
+        </div>
+        <div class="setup-card">
+          <h2>☁️ JSONBin 云同步</h2>
+          <div class="step"><div class="step-num">1</div><div class="step-txt">访问 <a href="https://jsonbin.io" target="_blank">jsonbin.io</a> 免费注册</div></div>
+          <div class="step"><div class="step-num">2</div><div class="step-txt">登录 → 头像 → API Keys → 复制 Master Key</div></div>
+          <div class="step"><div class="step-num">3</div><div class="step-txt">粘贴到下方保存。所有电脑填同一个 Key，每次打开自动拉取最新数据。</div></div>
+          <div style="margin-top:14px;max-width:400px">
+            <label>Master Key</label>
+            <input type="password" id="api-key-input" placeholder="$2b$10$xxxxxxxxxxxxxxxxxxxxxxx" style="font-family:var(--mono);font-size:12px;" />
+          </div>
+          <div class="btn-row" style="margin-top:10px">
+            <button class="btn-p" onclick="saveApiKey()">保存并连接</button>
+            <button class="btn-s" onclick="manualSync()">立即同步</button>
+            <button class="btn-d" onclick="clearApiKey()">清除</button>
+          </div>
+          <div id="setup-msg" style="margin-top:10px"></div>
+          <hr class="divider">
+          <div id="setup-status" style="font-size:13px;color:var(--text2)">未配置</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="ov" id="ov">
+  <div class="mdl">
+    <button class="mc" onclick="closeMdl()">✕</button>
+    <h3 id="mt"></h3>
+    <div id="mb"></div>
+  </div>
+</div>
+
+<script>
+// ══════════ 配置 ══════════
+const SK      = 'wh_data_v6';
+const CFG_KEY = 'wh_cfg_v2';
+const ZONES = {
+  A: Array.from({length:44},(_,i)=>'A'+(i+1)),
+  B: Array.from({length:26},(_,i)=>'B'+(i+1)),
+  C: Array.from({length:5}, (_,i)=>'C'+(i+1)),
+  '办公室': Array.from({length:11},(_,i)=>'办公室'+(i+1))
+};
+const MP = 5;
+
+let R   = [];
+let cfg = {apiKey:'', binId:'', pwdHash:''};
+let syncTimer = null;
+
+// ══════════ 密码工具 ══════════
+async function hashPwd(pwd) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(pwd));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// ══════════ 启动流程 ══════════
+async function boot() {
+  // 1. 读配置
+  try { cfg = {...cfg, ...JSON.parse(localStorage.getItem(CFG_KEY)||'{}')}; } catch(e){}
+
+  // 2. 初始化默认密码（首次使用）
+  if (!cfg.pwdHash) {
+    cfg.pwdHash = await hashPwd('warehouse2025');
+    saveCfg();
+  }
+
+  // 3. 检查登录状态（session级别）
+  if (sessionStorage.getItem('wh_authed') === '1') {
+    await launchApp();
+  }
+  // 否则停在登录页
+}
+
+async function doLogin() {
+  const input = document.getElementById('pwd-input').value;
+  const h = await hashPwd(input);
+  if (h === cfg.pwdHash) {
+    sessionStorage.setItem('wh_authed','1');
+    document.getElementById('login-err').textContent = '';
+    await launchApp();
+  } else {
+    document.getElementById('login-err').textContent = '密码错误，请重试';
+    document.getElementById('pwd-input').value = '';
+    document.getElementById('pwd-input').focus();
+  }
+}
+
+function doLogout() {
+  sessionStorage.removeItem('wh_authed');
+  document.getElementById('app-screen').style.display = 'none';
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('pwd-input').value = '';
+}
+
+// ══════════ 加载应用 ══════════
+async function launchApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  // 显示loading
+  const ov = document.getElementById('loading-overlay');
+  ov.classList.add('show');
+  setLoadingTxt('正在连接云端...');
+
+  if (cfg.apiKey && cfg.binId) {
+    // 优先从云端拉取
+    const ok = await fetchFromCloud();
+    if (ok) {
+      setLoadingTxt('数据加载完成 ✓');
+    } else {
+      setLoadingTxt('云端失败，读取本地缓存...');
+      loadLocal();
+    }
+  } else if (cfg.apiKey && !cfg.binId) {
+    setLoadingTxt('首次连接，初始化云端...');
+    loadLocal(); // 先用本地
+    await pushToCloud(); // 创建bin
+  } else {
+    setLoadingTxt('本地模式');
+    loadLocal();
+  }
+
+  await sleep(600);
+  ov.classList.remove('show');
+  document.getElementById('app-screen').style.display = 'block';
+
+  updNums(); renderStats(); doSearch(); updateSyncUI();
+
+  // 之后每2分钟静默拉取
+  setInterval(()=>{ if(cfg.apiKey && cfg.binId) fetchFromCloud(true); }, 120000);
+}
+
+function loadLocal() {
+  try {
+    const saved = localStorage.getItem(SK);
+    R = saved ? JSON.parse(saved) : [];
+  } catch(e) { R = []; }
+  // 注意：没有 seedData()，空仓库就是空的
+}
+
+function setLoadingTxt(t) { document.getElementById('loading-txt').textContent = t; }
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+
+// ══════════ 云同步 ══════════
+async function fetchFromCloud(silent=false) {
+  if (!cfg.apiKey || !cfg.binId) return false;
+  if (!silent) setSyncStatus('busy','拉取中...');
+  try {
+    const res = await fetch('https://api.jsonbin.io/v3/b/'+cfg.binId+'/latest', {
+      headers:{'X-Master-Key':cfg.apiKey}
+    });
+    const data = await res.json();
+    if (res.ok && Array.isArray(data.record?.records)) {
+      R = data.record.records;
+      localStorage.setItem(SK, JSON.stringify(R));
+      renderStats(); doSearch();
+      if (document.getElementById('panel-map').classList.contains('active')) renderMap();
+      setSyncStatus('ok','已同步'); setLastSync();
+      return true;
+    }
+    setSyncStatus('err','拉取失败'); return false;
+  } catch(e) { setSyncStatus('err','网络错误'); return false; }
+}
+
+async function pushToCloud() {
+  if (!cfg.apiKey) return;
+  setSyncStatus('busy','同步中...');
+  try {
+    let res;
+    if (!cfg.binId) {
+      res = await fetch('https://api.jsonbin.io/v3/b', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey,'X-Bin-Name':'wms-warehouse'},
+        body: JSON.stringify({records: R})
+      });
+    } else {
+      res = await fetch('https://api.jsonbin.io/v3/b/'+cfg.binId, {
+        method:'PUT',
+        headers:{'Content-Type':'application/json','X-Master-Key':cfg.apiKey},
+        body: JSON.stringify({records: R})
+      });
+    }
+    const data = await res.json();
+    if (data.metadata?.id && !cfg.binId) {
+      cfg.binId = data.metadata.id;
+      saveCfg();
+    }
+    if (res.ok) { setSyncStatus('ok','已同步'); setLastSync(); }
+    else { setSyncStatus('err','同步失败'); }
+  } catch(e) { setSyncStatus('err','网络错误'); }
+}
+
+function schedulePush() {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(pushToCloud, 800);
+}
+
+function manualSync() {
+  if (!cfg.apiKey) { sw('setup'); return; }
+  fetchFromCloud(false);
+}
+
+// ══════════ 持久化 ══════════
+function persist() {
+  localStorage.setItem(SK, JSON.stringify(R));
+  renderStats(); doSearch();
+  if (cfg.apiKey) schedulePush();
+}
+
+function saveCfg() { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
+
+// ══════════ UI 状态 ══════════
+function setSyncStatus(state, txt) {
+  const btn = document.getElementById('sync-btn');
+  const dot = btn.querySelector('.sync-dot');
+  btn.className = 'sync-status '+state;
+  document.getElementById('sync-txt').textContent = txt;
+  dot.className = 'sync-dot'+(state==='busy'?' pulse':'');
+}
+
+function setLastSync() {
+  const d = new Date();
+  document.getElementById('last-sync-lbl').textContent =
+    '上次同步 '+d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+
+function updateSyncUI() {
+  const el = document.getElementById('setup-status');
+  const inp = document.getElementById('api-key-input');
+  if (cfg.apiKey) {
+    el.innerHTML = '<span style="color:var(--green)">✓ 已配置</span>' +
+      (cfg.binId ? ' <span style="font-family:var(--mono);font-size:11px;color:var(--text3)">Bin: '+cfg.binId+'</span>' : '');
+    if (inp) inp.value = cfg.apiKey;
+    setSyncStatus('ok','云同步');
+  } else {
+    el.textContent = '未配置 — 仅本地存储';
+    setSyncStatus('local','本地模式');
+  }
+}
+
+async function saveApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) { showMsg('setup-msg','请填写 API Key','me'); return; }
+  cfg.apiKey = key; cfg.binId = '';
+  saveCfg(); updateSyncUI();
+  showMsg('setup-msg','正在连接...','ms');
+  await pushToCloud();
+  showMsg('setup-msg','✓ 连接成功！其他电脑填写同一个 API Key 即可同步。','ms');
+  updateSyncUI();
+}
+
+function clearApiKey() {
+  if (!confirm('确认清除云同步配置？')) return;
+  cfg.apiKey = ''; cfg.binId = ''; saveCfg(); updateSyncUI();
+  showMsg('setup-msg','已清除','ms');
+}
+
+// ══════════ 密码修改 ══════════
+async function changePwd() {
+  const old = document.getElementById('pwd-old').value;
+  const n1  = document.getElementById('pwd-new').value;
+  const n2  = document.getElementById('pwd-new2').value;
+  if (await hashPwd(old) !== cfg.pwdHash) { showMsg('pwd-msg','当前密码不正确','me'); return; }
+  if (n1.length < 6) { showMsg('pwd-msg','新密码至少6位','me'); return; }
+  if (n1 !== n2) { showMsg('pwd-msg','两次输入不一致','me'); return; }
+  cfg.pwdHash = await hashPwd(n1); saveCfg();
+  showMsg('pwd-msg','✓ 密码已更新','ms');
+  ['pwd-old','pwd-new','pwd-new2'].forEach(id=>document.getElementById(id).value='');
+}
+
+// ══════════ 统计 ══════════
+function zg(z){ return z.startsWith('A')?'A':z.startsWith('B')?'B':z.startsWith('C')?'C':'办公室'; }
+function nid(){ return R.length?Math.max(...R.map(r=>r.id))+1:1; }
+
+function renderStats() {
+  const instock = R.filter(r=>r.status==='在库').length;
+  const partial = R.filter(r=>r.status==='部分出库').length;
+  const used = new Set(R.filter(r=>r.status!=='已出库').map(r=>r.zone+'_'+r.pallet)).size;
+  document.getElementById('stats').innerHTML = `
+    <div class="stat"><div class="stat-v">${R.length}</div><div class="stat-l">总记录</div></div>
+    <div class="stat"><div class="stat-v">${instock}</div><div class="stat-l">在库</div></div>
+    <div class="stat"><div class="stat-v">${partial}</div><div class="stat-l">部分出库</div></div>
+    <div class="stat"><div class="stat-v">${used}/${(44+26+5+11)*MP}</div><div class="stat-l">托位占用</div></div>`;
+}
+
+// ══════════ 搜索 ══════════
+function sb(s){ const m={在库:'bg',部分出库:'ba',已出库:'br'}; return `<span class="badge ${m[s]||'br'}">${s}</span>`; }
+
+function doSearch() {
+  const q  = document.getElementById('q').value.toLowerCase();
+  const fz = document.getElementById('fz').value;
+  const fs = document.getElementById('fs').value;
+  let res = R.filter(r=>{
+    const t = `${r.zone} ${r.pallet} ${r.name} ${r.ib} ${r.note||''}`.toLowerCase();
+    return (!q||t.includes(q))&&(!fz||zg(r.zone)===fz)&&(!fs||r.status===fs);
+  }).sort((a,b)=>a.zone.localeCompare(b.zone,'zh')||(a.pallet-b.pallet));
+  const tbody = document.getElementById('sb');
+  const empty = document.getElementById('se');
+  if (!res.length){ tbody.innerHTML=''; empty.style.display='block'; return; }
+  empty.style.display='none';
+  tbody.innerHTML = res.map(r=>`<tr>
+    <td><span class="badge bb">${r.zone}-P${r.pallet}</span></td>
+    <td class="ovf" style="font-weight:500;max-width:1px" title="${r.name}">${r.name}</td>
+    <td class="ovf" style="font-size:12px;color:var(--text3);max-width:1px;font-family:var(--mono)" title="${r.ib}">${r.ib}</td>
+    <td style="font-family:var(--mono);font-size:12px">${r.qty} ${r.unit}</td>
+    <td>${sb(r.status)}</td>
+    <td><div class="act">
+      <button class="btn-s" style="font-size:11px;padding:4px 8px" onclick="editR(${r.id})">编辑</button>
+      <button class="btn-d" onclick="delR(${r.id})">删除</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+// ══════════ 地图 ══════════
+function renderMap() {
+  const q = document.getElementById('mq').value.toLowerCase();
+  const secs = [
+    {label:'A 区  A1–A44',group:'A',bdg:'bb',cols:11},
+    {label:'B 区  B1–B26',group:'B',bdg:'bp',cols:9},
+    {label:'C 区  C1–C5', group:'C',bdg:'ba',cols:5},
+    {label:'办公室  1–11',group:'办公室',bdg:'br',cols:6},
+  ];
+  document.getElementById('mg').innerHTML = secs.map(sec=>{
+    const zones=ZONES[sec.group];
+    const rows=[];
+    for(let i=0;i<zones.length;i+=sec.cols) rows.push(zones.slice(i,i+sec.cols));
+    const body=rows.map(chunk=>
+      '<div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">'+
+      chunk.map(zone=>{
+        const pts=Array.from({length:MP},(_,pi)=>{
+          const r=R.find(x=>x.zone===zone&&x.pallet===pi+1);
+          if(!r) return `<div class="pt empty"><div class="pt-id">${zone}-P${pi+1}</div><div class="pt-nm">—</div></div>`;
+          const hit=q&&(`${r.name} ${r.ib} ${r.note||''}`.toLowerCase().includes(q));
+          const cls=hit?'hit':r.status==='在库'?'occ':r.status==='部分出库'?'part':'done';
+          return `<div class="pt ${cls}" onclick="showD(${r.id})" title="${r.name}|${r.ib}|${r.qty}${r.unit}">
+            <div class="pt-id">${zone}-P${pi+1}</div>
+            <div class="pt-nm">${r.name.length>5?r.name.slice(0,4)+'…':r.name}</div>
+          </div>`;
+        }).join('');
+        return `<div class="zone-unit"><div class="zlbl">${zone}</div><div class="pcol">${pts}</div></div>`;
+      }).join('')+'</div>'
+    ).join('');
+    return `<div class="map-sec">
+      <div class="map-sec-hd"><span class="badge ${sec.bdg}">${sec.label}</span><span style="color:var(--text3)">${zones.length}区 · 最多${zones.length*MP}托位</span></div>
+      <div class="map-body">${body}</div>
+    </div>`;
+  }).join('');
+}
+
+// ══════════ 弹窗 ══════════
+function showD(id) {
+  const r=R.find(x=>x.id===id); if(!r) return;
+  document.getElementById('mt').textContent=r.zone+' · 托盘 '+r.pallet;
+  document.getElementById('mb').innerHTML=`
+    <div>${[['货品名称',`<b>${r.name}</b>`],['入库单号',`<span style="font-family:var(--mono);font-size:12px">${r.ib}</span>`],
+      ['数量',`<span style="font-family:var(--mono)">${r.qty} ${r.unit}</span>`],['状态',sb(r.status)],
+      ['备注',r.note||'—'],['入库日期',r.created||'—']].map(([k,v])=>
+      `<div class="dt-row"><div class="dt-k">${k}</div><div class="dt-v">${v}</div></div>`).join('')}</div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn-p" onclick="closeMdl();editR(${r.id})">编辑</button>
+      <select id="ss${r.id}" style="font-size:13px;padding:7px 8px;width:116px;border:1px solid var(--border);border-radius:var(--radius);background:var(--bg);color:var(--text)">
+        ${['在库','部分出库','已出库'].map(s=>`<option${r.status===s?' selected':''}>${s}</option>`).join('')}
+      </select>
+      <button class="btn-s" onclick="updSt(${r.id})">更新状态</button>
+    </div>`;
+  document.getElementById('ov').classList.add('show');
+}
+
+function updSt(id){
+  const r=R.find(x=>x.id===id);
+  if(r) r.status=document.getElementById('ss'+id).value;
+  persist(); closeMdl();
+  if(document.getElementById('panel-map').classList.contains('active')) renderMap();
+}
+function closeMdl(){ document.getElementById('ov').classList.remove('show'); }
+
+// ══════════ 编辑 / 删除 ══════════
+function editR(id) {
+  const r=R.find(x=>x.id===id); if(!r) return;
+  sw('entry');
+  document.getElementById('eg').value=zg(r.zone); updNums();
+  document.getElementById('en').value=r.zone;
+  document.getElementById('ep').value=r.pallet;
+  document.getElementById('ename').value=r.name;
+  document.getElementById('eib').value=r.ib;
+  document.getElementById('eqty').value=r.qty;
+  document.getElementById('eunit').value=r.unit;
+  document.getElementById('estat').value=r.status;
+  document.getElementById('enote').value=r.note||'';
+  window._eid=id;
+  showMsg('em','正在编辑 '+r.zone+'-P'+r.pallet+'，修改后点保存','ms');
+}
+
+function delR(id){
+  if(!confirm('确认删除？')) return;
+  R=R.filter(r=>r.id!==id); persist();
+}
+
+// ══════════ 入库 ══════════
+function updNums(){
+  const g=document.getElementById('eg').value;
+  document.getElementById('en').innerHTML=ZONES[g].map(z=>`<option value="${z}">${z}</option>`).join('');
+}
+
+function saveEntry(){
+  const zone=document.getElementById('en').value;
+  const pallet=parseInt(document.getElementById('ep').value);
+  const name=document.getElementById('ename').value.trim();
+  const ib=document.getElementById('eib').value.trim();
+  const qty=parseFloat(document.getElementById('eqty').value);
+  const unit=document.getElementById('eunit').value;
+  const status=document.getElementById('estat').value;
+  const note=document.getElementById('enote').value.trim();
+  if(!name||!ib||!qty){ showMsg('em','请填写货品名称、入库单号和数量','me'); return; }
+  if(window._eid){
+    const r=R.find(x=>x.id===window._eid);
+    if(r) Object.assign(r,{zone,pallet,name,ib,qty,unit,status,note});
+    delete window._eid;
+  } else {
+    const ex=R.find(r=>r.zone===zone&&r.pallet===pallet&&r.status!=='已出库');
+    if(ex){ showMsg('em',zone+'-P'+pallet+' 已有在库货物（'+ex.name+'）','me'); return; }
+    R.push({id:nid(),zone,pallet,name,ib,qty,unit,status,note,created:new Date().toISOString().slice(0,10)});
+  }
+  persist(); clearEntry(); showMsg('em','✓ 保存成功，正在同步...','ms');
+}
+
+function clearEntry(){
+  ['ename','eib','eqty','enote'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('estat').value='在库'; delete window._eid;
+}
+
+// ══════════ 导出 ══════════
+function exportCSV(){
+  const cols=['id','zone','pallet','name','ib','qty','unit','status','note','created'];
+  const head=['记录ID','区域','托盘号','货品名称','入库单号','数量','单位','状态','备注','入库日期'];
+  const csv='\uFEFF'+[head.join(','),...R.map(r=>cols.map(c=>JSON.stringify(r[c]??'')).join(','))].join('\n');
+  dl('warehouse_'+td()+'.csv',csv,'text/csv');
+}
+function exportJSON(){ dl('wh_backup_'+td()+'.json',JSON.stringify(R,null,2),'application/json'); }
+function importJSON(){
+  try{
+    const d=JSON.parse(document.getElementById('ij').value);
+    if(!Array.isArray(d)) throw 0;
+    R=d; persist(); showMsg('xm','导入成功，共'+R.length+'条','ms');
+  }catch(e){ showMsg('xm','JSON格式有误','me'); }
+}
+function dl(name,content,type){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=name; a.click(); }
+function td(){ return new Date().toISOString().slice(0,10); }
+
+// ══════════ 工具 ══════════
+function showMsg(el,txt,cls){
+  const e=document.getElementById(el); if(!e) return;
+  e.innerHTML=`<div class="msg ${cls}">${txt}</div>`;
+  setTimeout(()=>{ const e=document.getElementById(el); if(e) e.innerHTML=''; },4000);
+}
+
+function sw(id){
+  const ids=['search','map','entry','export','setup'];
+  document.querySelectorAll('.nav-btn').forEach((b,i)=>b.classList.toggle('active',ids[i]===id));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-'+id).classList.add('active');
+  if(id==='map') renderMap();
+  if(id==='search') doSearch();
+}
+
+boot();
+</script>
+</body>
+</html>
